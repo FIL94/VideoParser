@@ -136,7 +136,7 @@ def main():
                         rightField = np.repeat(rightLine, delay, 1)
                         image = np.concatenate([leftField, frame, rightField], 1)
                     elif frame.shape[0] < frame.shape[1]:
-                        delay = (frame.shape[1] - frame.shape[2]) / 2
+                        delay = (frame.shape[1] - frame.shape[0]) / 2
                         upperLine = frame[0, :, :]
                         upperLine = upperLine[np.newaxis, :, :]
                         upperField = np.repeat(upperLine, delay, 0)
@@ -163,7 +163,7 @@ def main():
                             rightField = np.repeat(rightLine, delay, 1)
                             image = np.concatenate([leftField, frame, rightField], 1)
                         elif frame.shape[0] < frame.shape[1]:
-                            delay = (frame.shape[1] - frame.shape[2]) / 2
+                            delay = (frame.shape[1] - frame.shape[0]) / 2
                             upperLine = frame[0, :, :]
                             upperLine = upperLine[np.newaxis, :, :]
                             upperField = np.repeat(upperLine, delay, 0)
