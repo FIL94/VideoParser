@@ -12,7 +12,7 @@ def read_init_path():
         sys.exit()
     if path == '' or not os.path.exists(path):
         print("Указанн пустой или неверный путь!")
-        read_init_path()
+        return None
     else:
         return path
 
@@ -23,10 +23,19 @@ def read_dest_path():
     if path == "ВЫХОД":
         sys.exit()
     if path == '':
-        return None
-    else:
         return path
-
+    else:
+        if os.path.exists(path):
+            print("Указанная папка уже существует.")
+            return path
+        else:
+            try:
+                os.mkdir(path)
+                print("Папка создана.")
+                return path
+            except:
+                print("Указан недопустимый путь!")
+                return None
 
 def read_fps():
     print("Введите кратность записи кадров (по умолчанию = 1):")
@@ -40,7 +49,7 @@ def read_fps():
             return int(fps)
         except ValueError:
             print("Неверный формат кратности! Требуется ввести целое число.")
-            read_fps()
+            return None
 
 
 def read_resolution():
@@ -49,46 +58,53 @@ def read_resolution():
     if resolution == "ВЫХОД":
         sys.exit()
     if resolution == '':
-        return None
+        return 0
     else:
         try:
             return int(resolution)
         except ValueError:
             print("Неверный формат разрешения! Требуется ввести одно целое число.")
-            read_fps()
+            return None
 
 
 def main():
     init_path = read_init_path()
-    print("Выбран путь к файлам:")
-    print(init_path)
-    print('\n')
+    while init_path is None:
+        init_path = read_init_path()
+    print("Выбран путь к файлам:  " + init_path)
+    print('')
 
     dest_path = read_dest_path()
-    if dest_path is None:
+    while dest_path is None:
+        dest_path = read_dest_path()
+    if dest_path == '':
         dest_path = init_path
-    else:
-        if not os.path.exists(dest_path):
-            os.mkdir(dest_path)
-    print("Выбран путь для сохранения:")
-    print(dest_path)
-    print('\n')
+    print("Выбран путь для сохранения:  " + dest_path)
+    print('')
 
     fps = read_fps()
+    while fps is None:
+        fps = read_fps()
     if fps == 1:
         print("Выбран режим сохранения всех кадров.")
-        print('\n')
+        print('')
+    elif fps < 1:
+        fps = 1
+        print("Выбран режим сохранения всех кадров.")
+        print('')
     else:
         print("Выбран режим сохранения каждых " + str(fps) + " кадров.")
-        print('\n')
+        print('')
 
     resolution = read_resolution()
-    if resolution is None:
+    while resolution is None:
+        resolution = read_resolution()
+    if resolution == 0:
         print("Выбрано сохранение кадров с разрешением по умолчанию.")
-        print('\n')
+        print('')
     else:
         print("Выбрано разрешение: " + str(resolution) + "x" + str(resolution))
-        print('\n')
+        print('')
 
     files = os.listdir(init_path)
     videos_list = []
@@ -115,7 +131,7 @@ def main():
                         leftLine = frame[:, 0, :]
                         leftLine = leftLine[:, np.newaxis, :]
                         leftField = np.repeat(leftLine, delay, 1)
-                        rightLine = frame[:, 0, :]
+                        rightLine = frame[:, -1, :]
                         rightLine = rightLine[:, np.newaxis, :]
                         rightField = np.repeat(rightLine, delay, 1)
                         image = np.concatenate([leftField, frame, rightField], 1)
@@ -124,17 +140,17 @@ def main():
                         upperLine = frame[0, :, :]
                         upperLine = upperLine[np.newaxis, :, :]
                         upperField = np.repeat(upperLine, delay, 0)
-                        lowerLine = frame[0, :, :]
+                        lowerLine = frame[-1, :, :]
                         lowerLine = lowerLine[np.newaxis, :, :]
                         lowerField = np.repeat(lowerLine, delay, 0)
                         image = np.concatenate([upperField, frame, lowerField], 0)
                     else:
                         image = frame
 
-                    if not (resolution is None):
+                    if resolution != 0:
                         image = cv2.resize(image, (resolution, resolution))
 
-                    cv2.imwrite(os.path.join(dest_path, video, '{:0>5}.jpg'.format(count)), image)
+                    cv2.imwrite(os.path.join(dest_path, video, r"{:0>5}.jpg".format(count)), image)
                 else:
                     if count % fps == 0:
                         if frame.shape[0] > frame.shape[1]:
@@ -142,7 +158,7 @@ def main():
                             leftLine = frame[:, 0, :]
                             leftLine = leftLine[:, np.newaxis, :]
                             leftField = np.repeat(leftLine, delay, 1)
-                            rightLine = frame[:, 0, :]
+                            rightLine = frame[:, -1, :]
                             rightLine = rightLine[:, np.newaxis, :]
                             rightField = np.repeat(rightLine, delay, 1)
                             image = np.concatenate([leftField, frame, rightField], 1)
@@ -151,20 +167,24 @@ def main():
                             upperLine = frame[0, :, :]
                             upperLine = upperLine[np.newaxis, :, :]
                             upperField = np.repeat(upperLine, delay, 0)
-                            lowerLine = frame[0, :, :]
+                            lowerLine = frame[-1, :, :]
                             lowerLine = lowerLine[np.newaxis, :, :]
                             lowerField = np.repeat(lowerLine, delay, 0)
                             image = np.concatenate([upperField, frame, lowerField], 0)
                         else:
                             image = frame
 
-                        if not (resolution is None):
+                        if resolution != 0:
                             image = cv2.resize(image, (resolution, resolution))
 
-                        cv2.imwrite(os.path.join(dest_path, video, '{:0>5}.jpg'.format(count)), image)
+                        cv2.imwrite(os.path.join(dest_path, video, r"{:0>5}.jpg".format(count)), image)
 
             print('Файл ' + video + ' обработан.')
 
+    print('\nОбработка завершена!!!\n')
+
+
 
 if __name__ == '__main__':
-    main()
+    while True:
+        main()
