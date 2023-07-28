@@ -262,7 +262,6 @@ def files_downloading():
         shuffle(indexes)
         selected_list = list([selected_list[x] for x in indexes])
         print("Файлы будут скачаны в случайном порядке.")
-
     else:
         print("Файлы будут скачаны по порядку.")
     print('')
