@@ -4,6 +4,7 @@ import sys
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
+from random import shuffle
 
 
 def read_task(flag: bool = True):
@@ -12,6 +13,7 @@ def read_task(flag: bool = True):
         print('Выберите задачу:')
         print('1. Раскадровка видео')
         print('2. Переформатирование изображений')
+        print('3. Загрузка файлов из S3')
     print('Ваш выбор:')
     ans = input()
     if ans == "ВЫХОД":
@@ -19,7 +21,7 @@ def read_task(flag: bool = True):
     elif ans == '':
         print('Не указана задача. Введите номер задачи из списка.')
         return None
-    elif ans == '1' or ans == '2':
+    elif ans in ['1', '2', '3']:
         return int(ans)
     else:
         print('Неверно указана задача. Введите номер задачи из списка.')
@@ -89,14 +91,7 @@ def read_resolution():
             return None
 
 
-def main():
-    tasks = {1: 'Раскадровка видео', 2: 'Переформатирование изображений'}
-    task = read_task()
-    while task is None:
-        task = read_task(False)
-    print('Выбрана задача: ' + tasks[task])
-    print('')
-
+def video_parsing_task():
     init_path = read_init_path()
     while init_path is None:
         init_path = read_init_path()
@@ -121,29 +116,190 @@ def main():
         print("Выбрано разрешение: " + str(resolution) + "x" + str(resolution))
         print('')
 
-    if task == 1:
+    fps = read_fps()
+    while fps is None:
         fps = read_fps()
-        while fps is None:
-            fps = read_fps()
-        if fps == 1:
-            print("Выбран режим сохранения всех кадров.")
-            print('')
-        elif fps < 1:
-            fps = 1
-            print("Выбран режим сохранения всех кадров.")
-            print('')
+    if fps == 1:
+        print("Выбран режим сохранения всех кадров.")
+        print('')
+    elif fps < 1:
+        fps = 1
+        print("Выбран режим сохранения всех кадров.")
+        print('')
+    else:
+        print("Выбран режим сохранения каждых " + str(fps) + " кадров.")
+        print('')
+
+    perform_video(init_path, dest_path, fps, resolution)
+
+
+def images_reformating_task():
+    init_path = read_init_path()
+    while init_path is None:
+        init_path = read_init_path()
+    print("Выбран путь к файлам:  " + init_path)
+    print('')
+
+    dest_path = read_dest_path()
+    while dest_path is None:
+        dest_path = read_dest_path()
+    if dest_path == '':
+        dest_path = init_path
+    print("Выбран путь для сохранения:  " + dest_path)
+    print('')
+
+    resolution = read_resolution()
+    while resolution is None:
+        resolution = read_resolution()
+    if resolution == 0:
+        print("Выбрано сохранение изображений с разрешением по умолчанию.")
+        print('')
+    else:
+        print("Выбрано разрешение: " + str(resolution) + "x" + str(resolution))
+        print('')
+
+    if dest_path == init_path:
+        if resolution > 0:
+            dest_path = dest_path + " ({0}x{1})".format(resolution, resolution)
         else:
-            print("Выбран режим сохранения каждых " + str(fps) + " кадров.")
-            print('')
-        perform_video(init_path, dest_path, fps, resolution)
-    elif task == 2:
-        if dest_path == init_path:
-            if resolution > 0:
-                dest_path = dest_path + " ({0}x{1})".format(resolution, resolution)
+            dest_path = dest_path + " (исх.разр.)"
+        os.mkdir(dest_path)
+    perform_image(init_path, dest_path, resolution)
+
+
+def files_downloading():
+    from minio import Minio
+    try:
+        client = Minio("s3-nn.ext.odtn.ru", "nnn", "SvK5eZaB6")
+        print("Соединение с сервером установлено.")
+        print('')
+    except:
+        print("Не удалось поключиться к хранилищу. Проверьте подключение к Интернету.")
+        return
+
+    buckets = list(client.list_buckets())
+    selected_bucket = None
+    selected_list = None
+    while selected_bucket is None:
+        print("Выберите папку:")
+        for i, bucket in enumerate(buckets):
+            print(f"{i+1}. {bucket.name}")
+        ans = input()
+        if ans == "ВЫХОД":
+            sys.exit()
+        if ans in list([str(x+1) for x in range(len(buckets))]):
+            selected_bucket = buckets[int(ans)-1]
+            print(f"Выбрана папка: {selected_bucket}")
+            print("Идет поиск файлов...")
+            objects = list(client.list_objects(selected_bucket.name))
+            images_list = []
+            videos_list = []
+            for obj in objects:
+                if obj.object_name.endswith(tuple(Image.registered_extensions().keys())):
+                    images_list.append(obj.object_name)
+                elif obj.object_name.endswith(('.mp4', '.avi')):
+                    videos_list.append(obj.object_name)
+            if len(images_list) == 0 and len(videos_list) == 0:
+                print("В папке нет изображений или видео.")
+                selected_bucket = None
             else:
-                dest_path = dest_path + " (исх.разр.)"
-            os.mkdir(dest_path)
-        perform_image(init_path, dest_path, resolution)
+                print(f"В выбранной папке найдено {len(images_list)} изображений и {len(videos_list)} видео.")
+                print('')
+
+                if len(images_list) == 0:
+                    selected_list = videos_list
+                    print("Будут скачаны видеофайлы.")
+                elif len(videos_list) == 0:
+                    selected_list = images_list
+                    print("Будут скачаны изображения.")
+                else:
+                    while selected_list is None:
+                        print("Что скачать:")
+                        print("1. Изображения")
+                        print("2. Видео")
+                        ans = input()
+                        if ans == "ВЫХОД":
+                            sys.exit()
+                        if ans == '1':
+                            selected_list = images_list
+                            print("Будут скачаны изображения.")
+                        elif ans == '2':
+                            selected_list = videos_list
+                            print("Будут скачаны видеозаписи.")
+                        else:
+                            print("Указано недопустимое значение. Введите номер нужного варианта.")
+                            selected_list = None
+        else:
+            print("Указано недопустимое значение. Введите номер нужного варианта.")
+            selected_bucket = None
+    print('')
+
+    files_number = None
+    while files_number is None:
+        print("Укажите количество скачиваемых файлов:")
+        ans = input()
+        if ans == "ВЫХОД":
+            sys.exit()
+        if ans == '':
+            files_number = len(selected_list)
+        else:
+            try:
+                if int(ans) > len(selected_list):
+                    print("Указанно количество превышающее количество файлов в папке.")
+                    files_number = None
+                else:
+                    files_number = int(ans)
+            except ValueError:
+                print("Неверный формат количества! Требуется ввести целое число.")
+                files_number = None
+    print(f"Будет скачано: {files_number} файлов.")
+    print('')
+
+    print("Скачать в случайном порядке?(ДА для подтверждения)")
+    ans = input()
+    if ans == 'ДА':
+        indexes = list(range(len(selected_list)))
+        shuffle(indexes)
+        selected_list = list([selected_list[x] for x in indexes])
+        print("Файлы будут скачаны в случайном порядке.")
+
+    else:
+        print("Файлы будут скачаны по порядку.")
+    print('')
+
+    dest_path = read_dest_path()
+    while dest_path is None:
+        dest_path = read_dest_path()
+        if dest_path == '':
+            dest_path = None
+    print("Выбран путь для сохранения:  " + dest_path)
+    print('')
+
+    for i in tqdm(range(files_number)):
+        try:
+            client.fget_object(selected_bucket.name, selected_list[i],
+                           os.path.join(dest_path, selected_list[i]))
+        except:
+            print(f"Загрузка файла {selected_list[i]} не удалась!")
+    print("Файлы успешно загружены!")
+
+
+def main():
+    tasks = {1: 'Раскадровка видео',
+             2: 'Переформатирование изображений',
+             3: 'Загрузка файлов из S3'}
+    task = read_task()
+    while task is None:
+        task = read_task(False)
+    print('Выбрана задача: ' + tasks[task])
+    print('')
+
+    if task == 1:
+        video_parsing_task()
+    elif task == 2:
+        images_reformating_task()
+    elif task == 3:
+        files_downloading()
 
 
 def perform_image(init_path, dest_path, resolution):
